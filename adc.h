@@ -25,6 +25,9 @@
 #define AIN5 5
 #define AIN6 6
 
+#define ACCEL_X AIN6
+#define ACCEL_Y AIN7
+#define ACCEL_Z AIN3
 /*****************************************************************************
  *
  * Description:

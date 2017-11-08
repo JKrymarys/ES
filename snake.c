@@ -26,6 +26,7 @@
 #include "eeprom.h"
 #include "startup/general.h"
 #include "pre_emptive_os/core/kernel.h"
+#include "adc.h"
 
 /******************************************************************************
  * Typedefs and defines
@@ -34,13 +35,11 @@
 #define MAXCOL 31
 
 #define SNAKE_START_COL 15
-#define SNAKE_START_ROW  7
-#define PAUSE_LENGTH     2
-
+#define SNAKE_START_ROW 7
+#define PAUSE_LENGTH 2
 
 /* added */
 #define EEPROM_ADDR 0x700
-
 
 /*****************************************************************************
  * Local prototypes
@@ -52,7 +51,6 @@ static void addSegment();
 static void setupLevel();
 
 static void gotoxy(tU8 x, tU8 y, tU8 color);
-
 
 /*****************************************************************************
  * Local variables
@@ -67,17 +65,20 @@ static tS32 high_score = 0;
 static tS8 screenGrid[MAXROW][MAXCOL];
 static tS8 direction = KEY_RIGHT;
 
-struct snakeSegment {
+struct snakeSegment
+{
     tS32 row;
     tS32 col;
 } snake[100];
 
+volatile tS16 refXvalue;
+volatile tS16 refYvalue;
+volatile tS16 refZvalue;
 
 /*****************************************************************************
  * External variables
  ****************************************************************************/
 extern volatile tU32 ms;
-
 
 /*****************************************************************************
  *
@@ -85,35 +86,45 @@ extern volatile tU32 ms;
  *    Implement Snake game
  *
  ****************************************************************************/
-void playSnake(void) {
+void playSnake(void)
+{
     tU8 keypress;
     tU8 done = FALSE;
 
     //game loop
-    do {
+    do
+    {
         obstacles = 4;
         level = 1;
         score = 0;
         speed = 14;
-        srand(ms);        //Ensure random seed initiated
+        srand(ms); //Ensure random seed initiated
         setupLevel();
 
         //main loop
-        do {
+        do
+        {
             tS32 i;
 
             //delay between snake moves
             osSleep(speed * PAUSE_LENGTH);
 
             //check if key press
+            
             keypress = checkKey();
-            if (keypress != KEY_NOTHING) {
+            if (keypress != KEY_NOTHING)
+            {
                 if ((keypress == KEY_UP) ||
                     (keypress == KEY_RIGHT) ||
                     (keypress == KEY_DOWN) ||
                     (keypress == KEY_LEFT))
                     direction = keypress;
             }
+            
+            //get reference values for the accelerometer controls
+            refXvalue = getAnalogueInput1(ACCEL_X);
+            refYvalue = getAnalogueInput1(ACCEL_Y);
+            refZvalue = getAnalogueInput0(ACCEL_Z);
 
             //add a segment to the end of the snake
             addSegment();
@@ -130,8 +141,10 @@ void playSnake(void) {
                 gotoxy(snake[i].col, snake[i].row, 0xfc);
 
             //if first press on each level, pause until a key is pressed
-            if (firstPress == TRUE) {
-                while (KEY_NOTHING == checkKey());
+            if (firstPress == TRUE)
+            {
+                while (KEY_NOTHING == checkKey())
+                    ;
                 firstPress = FALSE;
             }
 
@@ -146,13 +159,15 @@ void playSnake(void) {
             //collision detection - snake (bad!)
             for (i = 0; i < snakeLength - 1; i++)
                 if ((snake[snakeLength - 1].row) == (snake[i].row) &&
-                    (snake[snakeLength - 1].col) == (snake[i].col)) {
-                    keypress = KEY_CENTER;   //exit loop - game over
+                    (snake[snakeLength - 1].col) == (snake[i].col))
+                {
+                    keypress = KEY_CENTER; //exit loop - game over
                     break;
                 }
 
             //collision detection - food (good!)
-            if (screenGrid[snake[snakeLength - 1].row][snake[snakeLength - 1].col] == '.') {
+            if (screenGrid[snake[snakeLength - 1].row][snake[snakeLength - 1].col] == '.')
+            {
                 //increase score and length of snake
                 score += snakeLength * obstacles;
                 showScore();
@@ -160,9 +175,10 @@ void playSnake(void) {
                 addSegment();
 
                 //if length of snake reaches certain size, onto next level
-                if (snakeLength == (level + 3) * 2) {
+                if (snakeLength == (level + 3) * 2)
+                {
                     score += level * 1000;
-                    obstacles += 2;          //add obstacles
+                    obstacles += 2; //add obstacles
                     level++;
 
                     //check if time to inclrease speed (every 5 levels)
@@ -195,10 +211,6 @@ void playSnake(void) {
             osSleep(20);
         }
 
-
-
-
-
         showScore();
 
         {
@@ -220,21 +232,21 @@ void playSnake(void) {
             menu.choicesColor = 0xfd;
             menu.selectedColor = 0xe0;
 
-            switch (drawMenu(menu)) {
-                case 0:
-                    done = FALSE;
-                    break;  //Restart game
-                case 1:
-                    done = TRUE;
-                    break;   //End game
-                default:
-                    break;
+            switch (drawMenu(menu))
+            {
+            case 0:
+                done = FALSE;
+                break; //Restart game
+            case 1:
+                done = TRUE;
+                break; //End game
+            default:
+                break;
             }
         }
 
     } while (done == FALSE);
 }
-
 
 /*****************************************************************************
  *
@@ -242,7 +254,8 @@ void playSnake(void) {
  *    Initialize one level of the game. Draw game board.
  *
  ****************************************************************************/
-void setupLevel() {
+void setupLevel()
+{
     tS32 row, col, i;
 
     //clear screen
@@ -268,36 +281,41 @@ void setupLevel() {
             screenGrid[row][col] = ' ';
 
     //fill grid with Xs and food
-    for (i = 0; i < obstacles * 2; i++) {
+    for (i = 0; i < obstacles * 2; i++)
+    {
         row = rand() % MAXROW;
         col = rand() % MAXCOL;
         if (i < obstacles)
-            screenGrid[row][col] = 'x';  //= obstacle
+            screenGrid[row][col] = 'x'; //= obstacle
         else
-            screenGrid[row][col] = '.';  //= food
+            screenGrid[row][col] = '.'; //= food
     }
 
     //create snake array of length snakeLength
-    for (i = 0; i < snakeLength; i++) {
+    for (i = 0; i < snakeLength; i++)
+    {
         snake[i].row = SNAKE_START_ROW;
         snake[i].col = SNAKE_START_COL + i;
     }
 
     //draw game board
-    for (row = 0; row < MAXROW; row++) {
-        for (col = 0; col < MAXCOL; col++) {
-            switch (screenGrid[row][col]) {
-                case ' ':
-                    gotoxy(col, row, 0);
-                    break;
-                case '.':
-                    gotoxy(col, row, 0x1c);
-                    break;
-                case 'x':
-                    gotoxy(col, row, 0xe0);
-                    break;
-                default:
-                    break;
+    for (row = 0; row < MAXROW; row++)
+    {
+        for (col = 0; col < MAXCOL; col++)
+        {
+            switch (screenGrid[row][col])
+            {
+            case ' ':
+                gotoxy(col, row, 0);
+                break;
+            case '.':
+                gotoxy(col, row, 0x1c);
+                break;
+            case 'x':
+                gotoxy(col, row, 0xe0);
+                break;
+            default:
+                break;
             }
         }
     }
@@ -305,14 +323,14 @@ void setupLevel() {
     showScore();
 }
 
-
 /*****************************************************************************
  *
  * Description:
  *    Draw current score
  *
  ****************************************************************************/
-void showScore() {
+void showScore()
+{
     tU8 str[13];
 
     str[0] = 'L';
@@ -329,24 +347,28 @@ void showScore() {
     str[11] = score % 10 + '0';
     str[12] = 0;
 
-
     //remove leading zeroes
-    if (str[6] == '0') {
+    if (str[6] == '0')
+    {
         str[6] = ' ';
-        if (str[7] == '0') {
+        if (str[7] == '0')
+        {
             str[7] = ' ';
-            if (str[8] == '0') {
+            if (str[8] == '0')
+            {
                 str[8] = ' ';
-                if (str[9] == '0') {
+                if (str[9] == '0')
+                {
                     str[9] = ' ';
-                    if (str[10] == '0') {
+                    if (str[10] == '0')
+                    {
                         str[10] = ' ';
                     }
                 }
             }
         }
     }
-/*
+    /*
 *
 *            Reading from
 *
@@ -354,8 +376,8 @@ void showScore() {
 
     tU8 bestTime[13];
     tS8 isOk = eepromPageRead(EEPROM_ADDR, &bestTime, 7); //P O N G Byte1 Byte2
-    if (bestTime[0] != 'P' || bestTime[1] != 'O' || bestTime[2] != 'N'
-        || bestTime[3] != 'G') { //if the signature is wrong
+    if (bestTime[0] != 'P' || bestTime[1] != 'O' || bestTime[2] != 'N' || bestTime[3] != 'G')
+    { //if the signature is wrong
         bestTime[0] = 'B';
         bestTime[1] = 'E';
         bestTime[2] = 'S';
@@ -376,11 +398,9 @@ void showScore() {
 
     printf("\n\nEEPROMBESTTIME: %d\n\n", bestTime[4] * 0xff + bestTime[5]);
 
-
     lcdGotoxy(0, 114);
     lcdPuts(str);
 }
-
 
 /*****************************************************************************
  *
@@ -388,26 +408,55 @@ void showScore() {
  *    Add one snake segment
  *
  ****************************************************************************/
-void addSegment() {
-    switch (direction) {
-        case (KEY_RIGHT):
-            snake[snakeLength].row = snake[snakeLength - 1].row;
-            snake[snakeLength].col = snake[snakeLength - 1].col + 1;
-            break;
-        case (KEY_LEFT) :
-            snake[snakeLength].row = snake[snakeLength - 1].row;
-            snake[snakeLength].col = snake[snakeLength - 1].col - 1;
-            break;
-        case (KEY_UP)   :
-            snake[snakeLength].row = snake[snakeLength - 1].row - 1;
-            snake[snakeLength].col = snake[snakeLength - 1].col;
-            break;
-        case (KEY_DOWN) :
-            snake[snakeLength].row = snake[snakeLength - 1].row + 1;
-            snake[snakeLength].col = snake[snakeLength - 1].col;
+/* moving snake with joystick
+void addSegment()
+{
+    switch (direction)
+    {
+    case (KEY_RIGHT):
+        snake[snakeLength].row = snake[snakeLength - 1].row;
+        snake[snakeLength].col = snake[snakeLength - 1].col + 1;
+        break;
+    case (KEY_LEFT):
+        snake[snakeLength].row = snake[snakeLength - 1].row;
+        snake[snakeLength].col = snake[snakeLength - 1].col - 1;
+        break;
+    case (KEY_UP):
+        snake[snakeLength].row = snake[snakeLength - 1].row - 1;
+        snake[snakeLength].col = snake[snakeLength - 1].col;
+        break;
+    case (KEY_DOWN):
+        snake[snakeLength].row = snake[snakeLength - 1].row + 1;
+        snake[snakeLength].col = snake[snakeLength - 1].col;
     }
 }
-
+*/
+void addSegment()
+{
+    tS16 Xvalue, Yvalue;
+    Xvalue = getAnalogueInput(ACCEL_X);
+    Yvalue = getAnalogueInput(ACCEL_y);
+    if (Xvalue - refXvalue > 0)
+    {
+        snake[snakeLength].row = snake[snakeLength - 1].row;
+        snake[snakeLength].col = snake[snakeLength - 1].col + 1;
+    }
+    else if (Xvalue - refXvalue < 0)
+    {
+        snake[snakeLength].row = snake[snakeLength - 1].row;
+        snake[snakeLength].col = snake[snakeLength - 1].col - 1;
+    }
+    if (Yvalue - refYvalue > 0)
+    {
+        snake[snakeLength].row = snake[snakeLength - 1].row - 1;
+        snake[snakeLength].col = snake[snakeLength - 1].col;
+    }
+    else if (Yvalue - refYvalue < 0)
+    {
+        snake[snakeLength].row = snake[snakeLength - 1].row + 1;
+        snake[snakeLength].col = snake[snakeLength - 1].col;
+    }
+}
 
 /*****************************************************************************
  *
@@ -416,8 +465,7 @@ void addSegment() {
  *    specified color
  *
  ****************************************************************************/
-void gotoxy(tU8 x, tU8 y, tU8 color) {
+void gotoxy(tU8 x, tU8 y, tU8 color)
+{
     lcdRect(2 + (x * 4), 16 + (y * 4), 4, 4, color);
 }
-
-
