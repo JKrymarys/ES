@@ -19,10 +19,10 @@
 #include "lcd.h"
 #include "pca9532.h"
 
-#include "eeprom.h"
-
 #include "snake.h"
 #include "key.h"
+
+#include "eeprom.h"
 
 #include "fire_0_100x40c.h"
 #include "fire_1_100x40c.h"
@@ -40,6 +40,8 @@
 #define PROC1_STACK_SIZE 750
 #define PROC2_STACK_SIZE 750
 #define INIT_STACK_SIZE  400
+
+#define EEPROM_ADDR 0x700
 
 static tU8 proc1Stack[PROC1_STACK_SIZE];
 static tU8 proc2Stack[PROC2_STACK_SIZE];
@@ -59,7 +61,6 @@ static void initProc(void* arg);
 volatile tU32 ms;
 static tU8 contrast = 46;
 
-
 /*****************************************************************************
  *
  * Description:
@@ -71,7 +72,6 @@ main(void)
 {
   tU8 error;
   tU8 pid;
-
   osInit();
   osCreateProcess(initProc, initStack, INIT_STACK_SIZE, &pid, 1, NULL, &error);
   osStartProcess(pid, &error);
@@ -102,7 +102,7 @@ drawMenu(void)
   lcdGotoxy(22,20+(14*1));
   lcdColor(0x00,0xe0);
 //  lcdColor(0x00,0xfd);
-  lcdPuts("Fancy Snake v.0.0.3");
+  lcdPuts("Play Snake");
 }
 
 /*****************************************************************************
@@ -121,17 +121,17 @@ proc1(void* arg)
 
   printf("\n\n\n\n\n*******************************************************\n");
   printf("*                                                     *\n");
-  printf("* F03 Group presents                                  *\n");
-  printf("*          Fancy Snake Game                           *\n");
+  printf("* Demo program for 'Experiment Expansion Board'       *\n");
   printf("* running on LPC2103 Education Board.                 *\n");
+  printf("* - Snake game                                        *\n");
   printf("*                                                     *\n");
-  printf("* (C) F03 Group 2017                                  *\n");
+  printf("* (C) Embedded Artists 2008                           *\n");
   printf("*                                                     *\n");
   printf("*******************************************************\n");
 
   IODIR |= 0x00006000;  //P0.13/14
-  IOSET  = 0x00006000;
-
+  IOSET  = 0x00006000;	
+ 
   lcdInit();
   initKeyProc();
   drawMenu();
@@ -149,6 +149,28 @@ proc1(void* arg)
         playSnake();
         drawMenu();
       }
+	  else if (anyKey == KEY_DOWN)
+      {
+        tU8 str[5];
+        printf("ReadingFrom eeprom");
+        tU8 isOK = eepromPageRead(EEPROM_ADDR, &str, 5); 
+		eepromPoll();
+		
+        printf("%s\n",str);
+ 
+      }else if (anyKey == KEY_UP)
+      {
+		printf("Prepare to write");
+        tU8 str2[5];
+        str2[0] = 't';
+		str2[1] = 'e';
+		str2[2] = 's';
+		str2[3] = 't';
+		str2[4] = 0x0;
+        eepromWrite(EEPROM_ADDR, &str2, 5);
+		eepromPoll();
+		printf("Written");
+      }
       
       //adjust contrast
       else if (anyKey == KEY_RIGHT)
@@ -164,6 +186,16 @@ proc1(void* arg)
           contrast--;
         lcdContrast(contrast);
       }
+    }
+
+    switch(i)
+    {
+      case 0: lcdIcon(15, 88, 100, 40, _fire_0_100x40c[2], _fire_0_100x40c[3], &_fire_0_100x40c[4]); i++; break;
+      case 1: lcdIcon(15, 88, 100, 40, _fire_1_100x40c[2], _fire_1_100x40c[3], &_fire_1_100x40c[4]); i++; break;
+      case 2: lcdIcon(15, 88, 100, 40, _fire_2_100x40c[2], _fire_2_100x40c[3], &_fire_2_100x40c[4]); i++; break;
+      case 3: lcdIcon(15, 88, 100, 40, _fire_3_100x40c[2], _fire_3_100x40c[3], &_fire_3_100x40c[4]); i++; break;
+      case 4: lcdIcon(15, 88, 100, 40, _fire_4_100x40c[2], _fire_4_100x40c[3], &_fire_4_100x40c[4]); i=0; break;
+      default: i = 0; break;
     }
     osSleep(20);
   }

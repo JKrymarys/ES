@@ -24,10 +24,10 @@
 #define AIN4 4
 #define AIN5 5
 #define AIN6 6
+#define AIN7 7
 
 #define ACCEL_X AIN6
 #define ACCEL_Y AIN7
-#define ACCEL_Z AIN3
 /*****************************************************************************
  *
  * Description:
@@ -42,7 +42,7 @@
  *
  ****************************************************************************/
 tU16 getAnalogueInput(tU8 channel);
-
+tU16 getAnalogueInput1(tU8 channel);
 /*****************************************************************************
  *
  * Description:
